@@ -1,0 +1,13 @@
+This is my first C# project, so don't expect anything of stellar quality.
+Don't know the good way to do things, so basically just stumbling around.
+
+The project itself aims to create a very simplistic UDP based server-client
+application that takes into account your ping to synch SC2 replays.
+It does the starting of replays by findig SC2-s window and sending the letter "p" to it,
+"p" being pause/play.
+
+The UDP "connections" simply send a ping request to the server every 200 miliseconds,
+the server sends back that timestamp, and we now know how big our ping is (more-or-less,
+not really exact but close enough)
+
+If you have usefull tips, please do send me messages telling me about it, I really have no idea what I'm doing.
