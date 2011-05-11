@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Text;
 using System.Net;
 using System.Net.Sockets;
+using System.Timers;
 
 namespace SC2ReplaySync
 {
     
     partial class Network
     {
-        struct PingT
+        public struct PingT
         {
             // a maximum elteres amit toleralunk
             private const double maxsd = 80;
@@ -20,7 +21,7 @@ namespace SC2ReplaySync
             private uint min;
             private uint max;
             private double mean;
-
+            
             public uint Ping
             {
                 get
@@ -65,7 +66,7 @@ namespace SC2ReplaySync
                         sumsquared = 0;
                         min = 0;
                         max = 0;
-                        Log.LogMessage("Standard deviation in pings was too high, reset counters");
+                        Log.LogMessage("Standard deviation in pings was too high (" + sd + ", received ping: " + value + "), reset counters");
                     }
                 }
             }
@@ -74,17 +75,18 @@ namespace SC2ReplaySync
         const int PING = 2;
         const int PONG = 3;
         const int START = 4;
-        public delegate void PingUpdateEventHandler(object sender, PingEventArgs e);
-        public event PingUpdateEventHandler PingUpdate;
-        public class PingEventArgs : EventArgs
-        {
-            public PingT ping;
-        }
+        public event StatusUpdateEventHandler PingUpdate;
+        private PingT ping;
 
-        protected virtual void OnPingUpdate(PingEventArgs e)
+        protected virtual void OnPingUpdate()
         {
             if (PingUpdate != null)
-                PingUpdate(this, e);
+                PingUpdate();
+        }
+
+        public uint GetPing()
+        {
+            return ping.Ping;
         }
 
         private void SendTimestamp(UdpClient socket, IPEndPoint endpoint, int command = PING)
@@ -109,6 +111,20 @@ namespace SC2ReplaySync
             Buffer.BlockCopy(BitConverter.GetBytes(PONG), 0, buffer, 0, 4);
             Buffer.BlockCopy(data, 0, buffer, 4, 8);
             socket.Send(buffer, buffer.Length, endpoint);
+        }
+
+        private void SetupStartTimer(int interval = 5000)
+        {
+            var timer = new Timer();
+            timer.Elapsed += new ElapsedEventHandler(OnStartTimerExpired);
+            timer.Interval = interval;
+            timer.Enabled = true;
+            timer.AutoReset = false;
+        }
+
+        private static void OnStartTimerExpired(object source, ElapsedEventArgs e)
+        {
+            Program.SCWindow.SendReplayStart();
         }
     }
 }

@@ -10,11 +10,7 @@ namespace SC2ReplaySync
     partial class Network
     {
         private UdpClient server;
-        private IPEndPoint serverendpoint;
-        private Int64 lasttimestamp;
-        private PingT ping;
-        private Thread pingthread;
-
+        
         private void OnClientReceive(IAsyncResult result)
         {
             var endpoint = new IPEndPoint(IPAddress.Any, 0);
@@ -31,14 +27,11 @@ namespace SC2ReplaySync
                 }
                 else if (command == START)
                 {
-                    Thread.Sleep((int)ping.Ping / 2);
-                    Program.SCWindow.SendReplayStart();
+                    SetupStartTimer(Program.StartAfter - ((int)ping.Ping / 2));
                 }
 
                 ping.Ping = GetPingFromData(data);
-                var eventarg = new PingEventArgs();
-                eventarg.ping = ping;
-                OnPingUpdate(eventarg);
+                OnPingUpdate();
             }
             else
             {
@@ -46,36 +39,33 @@ namespace SC2ReplaySync
             }
         }
 
-        private void Connect(IPEndPoint endpoint)
+        public void Connect(string destination, int port)
         {
-            server = new UdpClient(endpoint); // exception handling
+            Log.LogMessage("connecting to " + destination + " port: " + port);
+            server = new UdpClient(destination, port); // exception handling
             server.Client.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, true);
             server.DontFragment = true;
             server.BeginReceive(new AsyncCallback(OnClientReceive), null);
+
             ping = new PingT();
-            pingthread = new Thread(new ThreadStart(SendPingRequest));
+
+            var timer = new System.Timers.Timer();
+            timer.Interval = 200;
+            timer.AutoReset = true;
+            timer.Elapsed += new System.Timers.ElapsedEventHandler(OnPingTimerExpired);
+            timer.Enabled = true;
         }
 
         private void Disconnect()
         {
-
-            if (pingthread.IsAlive)
-            {
-                pingthread.Abort();
-                pingthread.Join();
-            }
-
             if (server.Client.Connected)
                 server.Close();
         }
 
-        private void SendPingRequest()
+        public void OnPingTimerExpired(object source, System.Timers.ElapsedEventArgs e)
         {
-            while (true)
-            {
-                SendTimestamp(server, serverendpoint);
-                Thread.Sleep(200);
-            }
+            if(server.Client.Connected)
+                SendTimestamp(server, null);
         }
     }
 }
