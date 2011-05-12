@@ -69,11 +69,13 @@
                         | System.Windows.Forms.AnchorStyles.Left)
                         | System.Windows.Forms.AnchorStyles.Right)));
             this.IPAddressLabel.AutoSize = true;
-            this.IPAddressLabel.Location = new System.Drawing.Point(3, 0);
+            this.IPAddressLabel.Location = new System.Drawing.Point(3, 4);
+            this.IPAddressLabel.Margin = new System.Windows.Forms.Padding(3, 4, 3, 0);
             this.IPAddressLabel.Name = "IPAddressLabel";
-            this.IPAddressLabel.Size = new System.Drawing.Size(64, 30);
+            this.IPAddressLabel.Size = new System.Drawing.Size(64, 26);
             this.IPAddressLabel.TabIndex = 2;
             this.IPAddressLabel.Text = "IP address:";
+            this.IPAddressLabel.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
             // IPTextBox
             // 
@@ -84,6 +86,7 @@
             this.IPTextBox.Name = "IPTextBox";
             this.IPTextBox.Size = new System.Drawing.Size(99, 20);
             this.IPTextBox.TabIndex = 3;
+            this.IPTextBox.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.IPTextBox_KeyPress);
             // 
             // PortLabel
             // 
@@ -91,11 +94,13 @@
                         | System.Windows.Forms.AnchorStyles.Left)
                         | System.Windows.Forms.AnchorStyles.Right)));
             this.PortLabel.AutoSize = true;
-            this.PortLabel.Location = new System.Drawing.Point(178, 0);
+            this.PortLabel.Location = new System.Drawing.Point(178, 5);
+            this.PortLabel.Margin = new System.Windows.Forms.Padding(3, 5, 3, 0);
             this.PortLabel.Name = "PortLabel";
-            this.PortLabel.Size = new System.Drawing.Size(44, 30);
+            this.PortLabel.Size = new System.Drawing.Size(44, 25);
             this.PortLabel.TabIndex = 4;
             this.PortLabel.Text = "Port:";
+            this.PortLabel.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
             // PortTextBox
             // 
@@ -106,6 +111,8 @@
             this.PortTextBox.Name = "PortTextBox";
             this.PortTextBox.Size = new System.Drawing.Size(100, 20);
             this.PortTextBox.TabIndex = 5;
+            this.PortTextBox.Text = "9996";
+            this.PortTextBox.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.PortTextBox_KeyPress);
             // 
             // CreateServerButton
             // 

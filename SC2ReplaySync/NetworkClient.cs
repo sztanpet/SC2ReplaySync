@@ -9,63 +9,78 @@ namespace SC2ReplaySync
 {
     partial class Network
     {
-        private UdpClient server;
-        
-        private void OnClientReceive(IAsyncResult result)
+        public class Client : Network
         {
-            var endpoint = new IPEndPoint(IPAddress.Any, 0);
-            var data = server.EndReceive(result, ref endpoint);
 
-            if (data.Length == 12)
+            public void StartThread(string destination, int port)
             {
-                int command = BitConverter.ToInt32(data, 0);
+                thread = new Thread(new ParameterizedThreadStart(Start));
+                thread.Name = "Client";
 
-                if (command == PING)
-                {
-                    ReplyToPing(server, endpoint, data);
-                    return;
-                }
-                else if (command == START)
-                {
-                    SetupStartTimer(Program.StartAfter - ((int)ping.Ping / 2));
-                }
+                var arguments = new ThreadArguments();
+                arguments.destination = destination;
+                arguments.port = port;
 
-                ping.Ping = GetPingFromData(data);
-                OnPingUpdate();
+                thread.Start(arguments);
             }
-            else
+
+            class ThreadArguments
             {
-                Log.LogMessage("Received message with length: " + data.Length + " disregarding");
+                public string destination;
+                public int port;
             }
-        }
 
-        public void Connect(string destination, int port)
-        {
-            Log.LogMessage("connecting to " + destination + " port: " + port);
-            server = new UdpClient(destination, port); // exception handling
-            server.Client.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, true);
-            server.DontFragment = true;
-            server.BeginReceive(new AsyncCallback(OnClientReceive), null);
+            private void Start(object arg)
+            {
+                var destination = ((ThreadArguments)arg).destination;
+                var port = ((ThreadArguments)arg).port;
+                Log.LogMessage("connecting to " + destination + " port: " + port);
+                socket = new UdpClient(destination, port); // exception handling
+                socket.Client.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, true);
+                try
+                {
+                    socket.DontFragment = true;
+                }
+                catch { }
 
-            ping = new PingT();
+                ping = new PingT();
 
-            var timer = new System.Timers.Timer();
-            timer.Interval = 200;
-            timer.AutoReset = true;
-            timer.Elapsed += new System.Timers.ElapsedEventHandler(OnPingTimerExpired);
-            timer.Enabled = true;
-        }
+                pingtimer = new System.Timers.Timer();
+                pingtimer.Interval = 200;
+                pingtimer.AutoReset = true;
+                pingtimer.Elapsed += new System.Timers.ElapsedEventHandler(OnPingTimerExpired);
+                pingtimer.Enabled = true;
 
-        private void Disconnect()
-        {
-            if (server.Client.Connected)
-                server.Close();
-        }
+                while (true)
+                {
+                    var endpoint = new IPEndPoint(IPAddress.Any, 0);
+                    var data = socket.Receive(ref endpoint);
 
-        public void OnPingTimerExpired(object source, System.Timers.ElapsedEventArgs e)
-        {
-            if(server.Client.Connected)
-                SendTimestamp(server, null);
+                    if (data.Length == 12)
+                    {
+                        int command = BitConverter.ToInt32(data, 0);
+
+                        if (command == PING)
+                        {
+                            ReplyToPing(endpoint, data);
+                            return;
+                        }
+                        else if (command == START)
+                        {
+                            SetupStartTimer(Program.StartAfter - ((int)ping.Ping / 2));
+                        }
+
+                        ping.Ping = GetPingFromData(data);
+                        OnPingUpdate();
+                    }
+                }
+            }
+
+            public void OnPingTimerExpired(object source, System.Timers.ElapsedEventArgs e)
+            {
+                if (!pingtimercancelled)
+                    SendTimestamp(null);
+            }
         }
     }
 }

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
-using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using System.Threading;
 
 namespace SC2ReplaySync
 {
@@ -14,6 +14,11 @@ namespace SC2ReplaySync
     public partial class MainGUI : Form
     {
         delegate void SetLogboxMessage(object sender, LogboxEventArgs e);
+        private string PortCharSet = "0123456789\b";
+        private string IpCharSet = "0123456789.\b";
+        private Network.Client NetworkClient;
+        private Network.Server NetworkServer;
+
         public MainGUI()
         {
             InitializeComponent();
@@ -22,7 +27,7 @@ namespace SC2ReplaySync
         private void MainGUI_Load(object sender, EventArgs e)
         {
             ToolStripStatusLabel.Text = "";
-            LogTextBox.Text += "Newest version at: http://github.com/sztanpet/SC2ReplaySync";
+            LogTextBox.Text += "Homepage: http://github.com/sztanpet/SC2ReplaySync" + Environment.NewLine;
 
             Log.LogboxUpdate += new LogboxUpdateEventHandler(Logbox_Update);
             Program.SCWindow = new WindowHandling();
@@ -30,24 +35,88 @@ namespace SC2ReplaySync
 
             Program.Netw = new Network();
             Program.Netw.PingUpdate += new StatusUpdateEventHandler(StatusLabel_Update);
-            try
-            {
-                Program.Netw.Connect("192.168.1.3", 9996);
-            }
-            catch
-            {
-                Log.LogMessage("Connect failed");
-            }
         }
         
         private void ConnectButton_Click(object sender, EventArgs e)
         {
-            // TODO hook up connect
+            if (NetworkClient == null)
+                NetworkClient = new Network.Client();
+            
+            if (NetworkClient.ThreadIsAlive())
+            {
+                NetworkClient.StopThread();
+                ConnectButton.Text = "Connect";
+                CreateServerButton.Enabled = true;
+                return;
+            }
+
+            int port = Convert.ToInt32(PortTextBox.Text);
+            if (port > 65535)
+            {
+                Log.LogMessage("Invalid port specified");
+                return;
+            }
+
+            try
+            {
+                System.Net.IPAddress.Parse(IPTextBox.Text);
+            }
+            catch
+            {
+                Log.LogMessage("Invalid IP address");
+                return;
+            }
+
+            try
+            {
+                NetworkClient.StartThread(IPTextBox.Text, port);
+            }
+            catch
+            {
+                Log.LogMessage("Failed connecting");
+            }
+
+            if (NetworkClient.ThreadIsAlive())
+            {
+                ConnectButton.Text = "Disconnect";
+                CreateServerButton.Enabled = false;
+            }
         }
 
         private void CreateServerButton_Click(object sender, EventArgs e)
         {
-            // TODO hook up create
+            if (NetworkServer == null)
+                NetworkServer = new Network.Server();
+
+            if (NetworkServer.ThreadIsAlive())
+            {
+                NetworkServer.StopThread();
+                CreateServerButton.Text = "Create server";
+                ConnectButton.Enabled = true;
+                return;
+            }
+
+            int port = Convert.ToInt32(PortTextBox.Text);
+            if (port > 65535)
+            {
+                Log.LogMessage("Invalid port specified");
+                return;
+            }
+
+            try
+            {
+                NetworkServer.StartThread(port);
+            }
+            catch
+            {
+                Log.LogMessage("Unable to create server");
+            }
+
+            if (NetworkServer.ThreadIsAlive())
+            {
+                CreateServerButton.Text = "Stop server";
+                ConnectButton.Enabled = false;
+            }
         }
 
         private void StartReplayButton_Click(object sender, EventArgs e)
@@ -107,6 +176,18 @@ namespace SC2ReplaySync
         public class LogboxEventArgs : EventArgs
         {
             public string message;
+        }
+
+        private void PortTextBox_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (!PortCharSet.Contains(e.KeyChar.ToString()) || PortTextBox.Text.Length + 1 > 5)
+                e.Handled = true;
+        }
+
+        private void IPTextBox_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (!IpCharSet.Contains(e.KeyChar.ToString()) || IPTextBox.Text.Length + 1 > 15)
+                e.Handled = true;
         }
     }
 }

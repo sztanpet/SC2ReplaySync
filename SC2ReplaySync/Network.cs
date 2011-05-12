@@ -4,6 +4,7 @@ using System.Text;
 using System.Net;
 using System.Net.Sockets;
 using System.Timers;
+using System.Threading;
 
 namespace SC2ReplaySync
 {
@@ -12,7 +13,7 @@ namespace SC2ReplaySync
     {
         public struct PingT
         {
-            // a maximum elteres amit toleralunk
+            // the max standard deviation we want to handle
             private const double maxsd = 80;
             private double sd;
             private uint count;
@@ -77,6 +78,10 @@ namespace SC2ReplaySync
         const int START = 4;
         public event StatusUpdateEventHandler PingUpdate;
         private PingT ping;
+        private System.Timers.Timer pingtimer;
+        private bool pingtimercancelled = false;
+        private Thread thread;
+        private UdpClient socket;
 
         protected virtual void OnPingUpdate()
         {
@@ -84,13 +89,44 @@ namespace SC2ReplaySync
                 PingUpdate();
         }
 
+        public bool ThreadIsAlive()
+        {
+            if (thread == null)
+                return false;
+            else
+                return thread.IsAlive;
+        }
+
+        public void StopThread()
+        {
+            pingtimercancelled = true;
+            thread.Abort();
+            Stop();
+            thread.Join();
+        }
+
+        public void Stop()
+        {
+            try
+            {
+                pingtimercancelled = true;
+                pingtimer.Enabled = false;
+                pingtimer.Dispose();
+                socket.Close();
+            }
+            catch { }
+        }
+
         public uint GetPing()
         {
             return ping.Ping;
         }
 
-        private void SendTimestamp(UdpClient socket, IPEndPoint endpoint, int command = PING)
+        private void SendTimestamp(IPEndPoint endpoint, int command = PING)
         {
+            if (socket == null)
+                return;
+
             var timestamp = DateTime.Now.Ticks;
             var buffer = new byte[4 + 8];
             Buffer.BlockCopy(BitConverter.GetBytes(command), 0, buffer, 0, 4);
@@ -105,17 +141,27 @@ namespace SC2ReplaySync
             return (uint)timespan.Milliseconds;
         }
 
-        private void ReplyToPing(UdpClient socket, IPEndPoint endpoint, byte[] data)
+        private void ReplyToPing(IPEndPoint endpoint, byte[] data)
         {
             var buffer = new byte[4 + 8];
             Buffer.BlockCopy(BitConverter.GetBytes(PONG), 0, buffer, 0, 4);
             Buffer.BlockCopy(data, 0, buffer, 4, 8);
             socket.Send(buffer, buffer.Length, endpoint);
+            /*
+            try
+            {
+                socket.Send(buffer, buffer.Length, endpoint);
+            }
+            catch
+            {
+                Log.LogMessage("Caught socket error");
+            }
+            */
         }
 
         private void SetupStartTimer(int interval = 5000)
         {
-            var timer = new Timer();
+            var timer = new System.Timers.Timer();
             timer.Elapsed += new ElapsedEventHandler(OnStartTimerExpired);
             timer.Interval = interval;
             timer.Enabled = true;
