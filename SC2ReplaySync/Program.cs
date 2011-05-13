@@ -11,9 +11,8 @@ namespace SC2ReplaySync
     
     static class Program
     {
-        public const int StartAfter = 5;
+        public const int StartAfterSeconds = 5;
         public static WindowHandling SCWindow;
-        public static Network Netw;
         public static MainGUI GUI;
 
         /// <summary>

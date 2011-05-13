@@ -11,13 +11,18 @@ namespace SC2ReplaySync
 {
     public delegate void LogboxUpdateEventHandler(object sender, MainGUI.LogboxEventArgs e);
     public delegate void StatusUpdateEventHandler();
+    public delegate void PingUpdateEventHandler(uint ping);
+    public delegate void StartReplayEventHandler(int startafter);
+
     public partial class MainGUI : Form
     {
         delegate void SetLogboxMessage(object sender, LogboxEventArgs e);
+        public event StartReplayEventHandler StartReplay;
         private string PortCharSet = "0123456789\b";
         private string IpCharSet = "0123456789.\b";
         private Network.Client NetworkClient;
         private Network.Server NetworkServer;
+        private uint ping;
 
         public MainGUI()
         {
@@ -33,20 +38,20 @@ namespace SC2ReplaySync
             Program.SCWindow = new WindowHandling();
             Program.SCWindow.StatusUpdate += new StatusUpdateEventHandler(StatusLabel_Update);
 
-            Program.Netw = new Network();
-            Program.Netw.PingUpdate += new StatusUpdateEventHandler(StatusLabel_Update);
+            NetworkClient = new Network.Client();
+            NetworkClient.PingUpdate += new PingUpdateEventHandler(Ping_Update);
+            NetworkServer = new Network.Server();
+            NetworkServer.PingUpdate += new PingUpdateEventHandler(Ping_Update);
         }
         
         private void ConnectButton_Click(object sender, EventArgs e)
         {
-            if (NetworkClient == null)
-                NetworkClient = new Network.Client();
-            
             if (NetworkClient.ThreadIsAlive())
             {
                 NetworkClient.StopThread();
                 ConnectButton.Text = "Connect";
                 CreateServerButton.Enabled = true;
+                StartReplayButton.Enabled = false;
                 return;
             }
 
@@ -80,19 +85,18 @@ namespace SC2ReplaySync
             {
                 ConnectButton.Text = "Disconnect";
                 CreateServerButton.Enabled = false;
+                StartReplayButton.Enabled = true;
             }
         }
 
         private void CreateServerButton_Click(object sender, EventArgs e)
         {
-            if (NetworkServer == null)
-                NetworkServer = new Network.Server();
-
             if (NetworkServer.ThreadIsAlive())
             {
                 NetworkServer.StopThread();
                 CreateServerButton.Text = "Create server";
                 ConnectButton.Enabled = true;
+                StartReplayButton.Enabled = false;
                 return;
             }
 
@@ -116,17 +120,25 @@ namespace SC2ReplaySync
             {
                 CreateServerButton.Text = "Stop server";
                 ConnectButton.Enabled = false;
+                StartReplayButton.Enabled = true;
             }
         }
 
         private void StartReplayButton_Click(object sender, EventArgs e)
         {
-            // TODO hook up sendreplay
+            
+            if (StartReplay == null)
+                return;
+
+            Log.LogMessage("Trying to start the replay in " + Program.StartAfterSeconds + " seconds.");
+            StartReplay(Program.StartAfterSeconds);
         }
 
         private void Form_Closing(object sender, FormClosingEventArgs e)
         {
-            Program.SCWindow.StopWindowThread();
+            Program.SCWindow.StopWindowFinding();
+            NetworkServer.StopThread();
+            NetworkClient.StopThread();
         }
 
         private void Logbox_Update(object sender, LogboxEventArgs e)
@@ -151,12 +163,17 @@ namespace SC2ReplaySync
             }
         }
 
+        private void Ping_Update(uint clientping)
+        {
+            ping = clientping;
+            StatusLabel_Update();
+        }
+
         private void StatusLabel_Update()
         {
-            // TODO megnezni hogy van e
             var statustext = "";
-            var ping = Program.Netw.GetPing();
-            if (ping > 0)
+            
+            if (ping != 0)
             {
                 statustext += "Avg Ping: " + ping + " | ";
             }

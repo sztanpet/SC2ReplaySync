@@ -14,7 +14,7 @@ namespace SC2ReplaySync
 
             public void StartThread(string destination, int port)
             {
-                thread = new Thread(new ParameterizedThreadStart(Start));
+                thread = new Thread(new ParameterizedThreadStart(Run));
                 thread.Name = "Client";
 
                 var arguments = new ThreadArguments();
@@ -30,13 +30,16 @@ namespace SC2ReplaySync
                 public int port;
             }
 
-            private void Start(object arg)
+            protected override void Start(object arg)
             {
                 var destination = ((ThreadArguments)arg).destination;
                 var port = ((ThreadArguments)arg).port;
-                Log.LogMessage("connecting to " + destination + " port: " + port);
-                socket = new UdpClient(destination, port); // exception handling
+                var endpoint = new IPEndPoint(IPAddress.Any, 0);
+
+                socket = new UdpClient(destination, port);
                 socket.Client.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, true);
+                Log.LogMessage("Connected to " + destination + " port: " + port);
+
                 try
                 {
                     socket.DontFragment = true;
@@ -51,10 +54,20 @@ namespace SC2ReplaySync
                 pingtimer.Elapsed += new System.Timers.ElapsedEventHandler(OnPingTimerExpired);
                 pingtimer.Enabled = true;
 
+                Program.GUI.StartReplay += new StartReplayEventHandler(SetupStartTimer);
+
                 while (true)
                 {
-                    var endpoint = new IPEndPoint(IPAddress.Any, 0);
-                    var data = socket.Receive(ref endpoint);
+                        
+                    var data = new byte[0];
+                    try
+                    {
+                        data = socket.Receive(ref endpoint);
+                    }
+                    catch
+                    { 
+                        continue;
+                    }
 
                     if (data.Length == 12)
                     {
@@ -62,17 +75,21 @@ namespace SC2ReplaySync
 
                         if (command == PING)
                         {
-                            ReplyToPing(endpoint, data);
-                            return;
-                        }
-                        else if (command == START)
-                        {
-                            SetupStartTimer(Program.StartAfter - ((int)ping.Ping / 2));
+                            ReplyToPing(null, data);
+                            continue;
                         }
 
                         ping.Ping = GetPingFromData(data);
-                        OnPingUpdate();
+                        OnPingUpdate(ping.Ping);
+
+                        if (command == START)
+                        {
+                            StartTimer((Program.StartAfterSeconds * 1000) - ((int)ping.Ping / 2));
+                        }
                     }
+                    else
+                        Log.LogMessage("got message of " + data.Length + " length");
+                    
                 }
             }
 

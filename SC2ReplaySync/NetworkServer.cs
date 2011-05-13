@@ -4,6 +4,7 @@ using System.Text;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Diagnostics;
 
 namespace SC2ReplaySync
 {
@@ -13,7 +14,6 @@ namespace SC2ReplaySync
         {
             
             private Dictionary<IPEndPoint, PingT> clients;
-            private PingT ping;
 
             ~Server()
             {
@@ -25,7 +25,6 @@ namespace SC2ReplaySync
                 var clientping = new PingT();
                 if (clients.TryGetValue(endpoint, out clientping))
                 {
-                    Log.LogMessage("Client found in the dict");
                     if (ping != null)
                         clientping.Ping = (uint)ping;
                 }
@@ -38,18 +37,28 @@ namespace SC2ReplaySync
 
             public void StartThread(int port)
             {
-                thread = new Thread(new ParameterizedThreadStart(Start));
+                thread = new Thread(new ParameterizedThreadStart(Run));
                 thread.Name = "Server";
                 thread.Start(port);
             }
 
-            private void Start(object arg)
+            override protected void Start(object arg)
             {
                 var port = (int)arg;
                 var endpoint = new IPEndPoint(IPAddress.Any, port);
-                socket = new UdpClient(endpoint);
-                socket.Client.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, true);
-                socket.DontFragment = true;
+
+                try
+                {
+                    socket = new UdpClient(endpoint);
+                    socket.Client.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, true);
+                    socket.DontFragment = true;
+                }
+                catch
+                {
+                    Log.LogMessage("Failed to create server on: " + endpoint);
+                    return;
+                }
+
                 Log.LogMessage("Server created on: " + endpoint);
 
                 ping = new PingT();
@@ -61,31 +70,37 @@ namespace SC2ReplaySync
                 pingtimer.Elapsed += new System.Timers.ElapsedEventHandler(OnPingTimerExpired);
                 pingtimer.Enabled = true;
 
-                var clientendpoint = new IPEndPoint(IPAddress.Any, 0);
+                Program.GUI.StartReplay += new StartReplayEventHandler(SetupStartTimer);
 
                 while (true)
                 {
                     try
                     {
+                        var clientendpoint = new IPEndPoint(IPAddress.Any, 0);
                         var data = socket.Receive(ref clientendpoint);
+
                         if (data.Length == 12)
                         {
                             int command = BitConverter.ToInt32(data, 0);
                             if (command == PING)
                             {
                                 ReplyToPing(clientendpoint, data);
-                                UpdateClientPing(clientendpoint, null); // ad // add the new client                        return;
+                                UpdateClientPing(clientendpoint, null); // add the new client
+                                continue;
                             }
 
                             var receivedping = GetPingFromData(data);
                             ping.Ping = receivedping; // update global ping average
+                            OnPingUpdate(ping.Ping);
                             UpdateClientPing(clientendpoint, receivedping); // update per-client average
 
                             if (command == START)
                             {
-                                SetupStartTimer(Program.StartAfter - ((int)clients[clientendpoint].Ping / 2));
+                                StartTimer((Program.StartAfterSeconds * 1000) - ((int)clients[clientendpoint].Ping / 2));
                             }
                         }
+                        else
+                            Log.LogMessage("got message of " + data.Length + " length");
                     }
                     catch
                     {
@@ -94,13 +109,32 @@ namespace SC2ReplaySync
                 }
             }
 
+            protected override void SetupStartTimer(int startafter)
+            {
+                if (stopwatch == null)
+                {
+                    stopwatch = Stopwatch.StartNew();
+                }
+                
+                var timestamp = stopwatch.ElapsedTicks;
+                var buffer = new byte[4 + 8];
+                Buffer.BlockCopy(BitConverter.GetBytes(START), 0, buffer, 0, 4);
+                Buffer.BlockCopy(BitConverter.GetBytes(timestamp), 0, buffer, 4, 8);
+
+                foreach (var pair in clients)
+                {
+                    socket.Send(buffer, buffer.Length, pair.Key);
+                }
+
+                StartTimer(startafter * 1000);
+            }
+
             public void OnPingTimerExpired(object source, System.Timers.ElapsedEventArgs e)
             {
                 if (socket != null && !pingtimercancelled)
                 {
                     foreach (var pair in clients)
                     {
-                        Log.LogMessage("sending ping to client: " + pair.Key);
                         SendTimestamp(pair.Key);
                     }
                 }

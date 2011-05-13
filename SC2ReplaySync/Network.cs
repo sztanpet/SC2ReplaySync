@@ -5,16 +5,17 @@ using System.Net;
 using System.Net.Sockets;
 using System.Timers;
 using System.Threading;
+using System.Diagnostics;
 
 namespace SC2ReplaySync
 {
     
-    partial class Network
+    public partial class Network
     {
         public struct PingT
         {
             // the max standard deviation we want to handle
-            private const double maxsd = 80;
+            private const double maxsd = 100;
             private double sd;
             private uint count;
             private UInt64 sum;
@@ -32,7 +33,6 @@ namespace SC2ReplaySync
 
                 set
                 {
-
                     if (count == 0 || value < min)
                         min = value;
                     if (count == 0 || value > max)
@@ -42,23 +42,15 @@ namespace SC2ReplaySync
                     sum += value;
                     sumsquared += value * value;
 
-                    try
-                    {
+                    if (count != 0 && count - 1 != 0)
                         sd = Math.Sqrt((sumsquared - (sum * sum / count)) / (count - 1));
-                    }
-                    catch
-                    {
+                    else
                         sd = 0;
-                    }
-
-                    try
-                    {
+                    
+                    if (count != 0)
                         mean = sum / count;
-                    }
-                    catch
-                    {
+                    else
                         mean = 0;
-                    }
 
                     if (sd > maxsd)
                     {
@@ -76,17 +68,38 @@ namespace SC2ReplaySync
         const int PING = 2;
         const int PONG = 3;
         const int START = 4;
-        public event StatusUpdateEventHandler PingUpdate;
-        private PingT ping;
-        private System.Timers.Timer pingtimer;
-        private bool pingtimercancelled = false;
-        private Thread thread;
-        private UdpClient socket;
 
-        protected virtual void OnPingUpdate()
+        public event PingUpdateEventHandler PingUpdate;
+
+        protected PingT ping;
+        protected System.Timers.Timer pingtimer;
+        protected bool pingtimercancelled = false;
+        protected Thread thread;
+        protected UdpClient socket;
+        protected Stopwatch stopwatch;
+
+        protected virtual void OnPingUpdate(uint ping)
         {
             if (PingUpdate != null)
-                PingUpdate();
+                PingUpdate(ping);
+        }
+
+        protected virtual void Start(object arg)
+        {
+        }
+
+        protected virtual void Run(object arg)
+        {
+            try
+            {
+                Start(arg);
+            }
+            catch (ThreadAbortException)
+            {
+                Stop();
+                
+            }
+            Log.LogMessage("stop");
         }
 
         public bool ThreadIsAlive()
@@ -97,20 +110,30 @@ namespace SC2ReplaySync
                 return thread.IsAlive;
         }
 
-        public void StopThread()
+        public virtual void StopThread()
         {
-            pingtimercancelled = true;
-            thread.Abort();
-            Stop();
-            thread.Join();
-        }
+            if (thread == null || !thread.IsAlive)
+                return;
 
-        public void Stop()
-        {
             try
             {
                 pingtimercancelled = true;
+                thread.Abort();
+                Stop();
+                thread.Join();
+            }
+            catch { }
+        }
+
+        public virtual void Stop()
+        {
+            try
+            {
+                Program.GUI.StartReplay -= new StartReplayEventHandler(SetupStartTimer);
+                pingtimercancelled = true;
                 pingtimer.Enabled = false;
+                stopwatch.Stop();
+                stopwatch = null;
                 pingtimer.Dispose();
                 socket.Close();
             }
@@ -122,53 +145,64 @@ namespace SC2ReplaySync
             return ping.Ping;
         }
 
-        private void SendTimestamp(IPEndPoint endpoint, int command = PING)
+        protected void SendTimestamp(IPEndPoint endpoint, int command = PING)
         {
-            if (socket == null)
-                return;
-
-            var timestamp = DateTime.Now.Ticks;
+            if (stopwatch == null)
+            {
+                stopwatch = Stopwatch.StartNew();
+            }
+            
+            var timestamp = stopwatch.ElapsedTicks;
             var buffer = new byte[4 + 8];
             Buffer.BlockCopy(BitConverter.GetBytes(command), 0, buffer, 0, 4);
             Buffer.BlockCopy(BitConverter.GetBytes(timestamp), 0, buffer, 4, 8);
             socket.Send(buffer, buffer.Length, endpoint);
         }
 
-        private uint GetPingFromData(byte[] data, int offset = 4)
+        protected uint GetPingFromData(byte[] data, int offset = 4)
         {
-            var timestamp = BitConverter.ToInt64(data, offset);
-            var timespan = new System.TimeSpan(DateTime.Now.Ticks - timestamp);
-            return (uint)timespan.Milliseconds;
+            if (stopwatch == null)
+                return 0;
+            
+            var timestamp = stopwatch.ElapsedTicks;
+            var clienttimestamp = BitConverter.ToInt64(data, offset);
+            var miliseconds = ((timestamp - clienttimestamp) / Math.Round((double)(Stopwatch.Frequency / 1000)));
+            
+            return (uint)miliseconds;
         }
 
-        private void ReplyToPing(IPEndPoint endpoint, byte[] data)
+        protected void ReplyToPing(IPEndPoint endpoint, byte[] data)
         {
+            Buffer.BlockCopy(BitConverter.GetBytes(PONG), 0, data, 0, 4);
+            socket.Send(data, data.Length, endpoint);
+        }
+
+        protected virtual void SetupStartTimer(int startafter = 5)
+        {
+            if (stopwatch == null)
+            {
+                stopwatch = Stopwatch.StartNew();
+            }
+
+            var timestamp = stopwatch.ElapsedTicks;
             var buffer = new byte[4 + 8];
-            Buffer.BlockCopy(BitConverter.GetBytes(PONG), 0, buffer, 0, 4);
-            Buffer.BlockCopy(data, 0, buffer, 4, 8);
-            socket.Send(buffer, buffer.Length, endpoint);
-            /*
-            try
-            {
-                socket.Send(buffer, buffer.Length, endpoint);
-            }
-            catch
-            {
-                Log.LogMessage("Caught socket error");
-            }
-            */
+            Buffer.BlockCopy(BitConverter.GetBytes(START), 0, buffer, 0, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(timestamp), 0, buffer, 4, 8);
+            socket.Send(buffer, buffer.Length);
+
+            StartTimer(startafter * 1000);
         }
 
-        private void SetupStartTimer(int interval = 5000)
+        protected void StartTimer(int startafter)
         {
             var timer = new System.Timers.Timer();
             timer.Elapsed += new ElapsedEventHandler(OnStartTimerExpired);
-            timer.Interval = interval;
+            timer.Interval = startafter;
             timer.Enabled = true;
             timer.AutoReset = false;
         }
-
-        private static void OnStartTimerExpired(object source, ElapsedEventArgs e)
+        
+        protected virtual void OnStartTimerExpired(object source, ElapsedEventArgs e)
         {
             Program.SCWindow.SendReplayStart();
         }

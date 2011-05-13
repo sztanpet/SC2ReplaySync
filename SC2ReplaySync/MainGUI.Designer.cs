@@ -144,6 +144,7 @@
             // 
             this.StartReplayButton.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
                         | System.Windows.Forms.AnchorStyles.Right)));
+            this.StartReplayButton.Enabled = false;
             this.StartReplayButton.Location = new System.Drawing.Point(3, 3);
             this.StartReplayButton.Name = "StartReplayButton";
             this.StartReplayButton.Size = new System.Drawing.Size(325, 23);

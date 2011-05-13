@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Windows.Forms;
 using System.Text;
 using System.Runtime.InteropServices;
-using System.Threading;
 
 namespace SC2ReplaySync
 {
     class WindowHandling
     {
-        private IntPtr WindowHandle;
-        private Thread WindowThread;
+        private IntPtr windowhandle;
+        private System.Timers.Timer timer;
+        private bool timerstopped = false;
         public event StatusUpdateEventHandler StatusUpdate;
 
         [DllImport("USER32.DLL", CharSet = CharSet.Unicode)]
@@ -22,61 +22,56 @@ namespace SC2ReplaySync
 
         public WindowHandling()
         {
-            WindowThread = new Thread(new ThreadStart(TryFindSC2Window));
-            WindowThread.Start();
+            timer = new System.Timers.Timer();
+            timer.Interval = 1000;
+            timer.AutoReset = true;
+            timer.Elapsed += new System.Timers.ElapsedEventHandler(FindSC2Window);
+            timer.Enabled = true;
         }
 
         public bool WindowFound()
         {
-            if (WindowHandle == IntPtr.Zero)
+            if (windowhandle == IntPtr.Zero)
                 return false;
             else
                 return true;
         }
 
-        public void StopWindowThread()
+        public void StopWindowFinding()
         {
-            Log.LogMessage("Received request to stop window thread");
-            if(WindowThread.IsAlive)
-            {
-                WindowThread.Abort();
-                WindowThread.Join();
-            }
+            timerstopped = true;
+            timer.Elapsed -= new System.Timers.ElapsedEventHandler(FindSC2Window);
+            timer.Enabled = false;
         }
 
         ~WindowHandling()
         {
-            StopWindowThread();
+            timerstopped = true;
+            timer.Enabled = false;
         }
 
-        private void FindSC2Window()
+        private void FindSC2Window(object sender, System.Timers.ElapsedEventArgs e)
         {
+            if (timerstopped)
+                return;
+
             var SC2Handle = FindWindow(null, "StarCraft II");
 
-            if (SC2Handle != IntPtr.Zero && WindowHandle == IntPtr.Zero)
+            if (SC2Handle != IntPtr.Zero && windowhandle == IntPtr.Zero)
                 Log.LogMessage("SC2 Window found, able to send key strokes");
 
-            WindowHandle = SC2Handle;
+            windowhandle = SC2Handle;
             StatusUpdate();
-        }
-
-        public void TryFindSC2Window()
-        {
-            while (true)
-            {
-                FindSC2Window();
-                Thread.Sleep(1000);
-            }
         }
 
         public void SendReplayStart()
         {
-            if (WindowHandle == IntPtr.Zero)
+            if (windowhandle == IntPtr.Zero)
             {
                 Log.LogMessage("Replay start was called but no window to send shit to, is SC2 open?");
             }
 
-            SetForegroundWindow(WindowHandle);
+            SetForegroundWindow(windowhandle);
             SendKeys.SendWait("p");
         }
     }
