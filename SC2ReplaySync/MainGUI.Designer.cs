@@ -83,6 +83,7 @@
                         | System.Windows.Forms.AnchorStyles.Left)
                         | System.Windows.Forms.AnchorStyles.Right)));
             this.IPTextBox.Location = new System.Drawing.Point(73, 3);
+            this.IPTextBox.MaxLength = 15;
             this.IPTextBox.Name = "IPTextBox";
             this.IPTextBox.Size = new System.Drawing.Size(99, 20);
             this.IPTextBox.TabIndex = 3;
@@ -108,6 +109,7 @@
                         | System.Windows.Forms.AnchorStyles.Left)
                         | System.Windows.Forms.AnchorStyles.Right)));
             this.PortTextBox.Location = new System.Drawing.Point(228, 3);
+            this.PortTextBox.MaxLength = 5;
             this.PortTextBox.Name = "PortTextBox";
             this.PortTextBox.Size = new System.Drawing.Size(100, 20);
             this.PortTextBox.TabIndex = 5;

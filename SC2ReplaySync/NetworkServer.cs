@@ -74,37 +74,37 @@ namespace SC2ReplaySync
 
                 while (true)
                 {
+                    var clientendpoint = new IPEndPoint(IPAddress.Any, 0);
+                    var data = new byte[0];
+
                     try
                     {
-                        var clientendpoint = new IPEndPoint(IPAddress.Any, 0);
-                        var data = socket.Receive(ref clientendpoint);
-
-                        if (data.Length == 12)
-                        {
-                            int command = BitConverter.ToInt32(data, 0);
-                            if (command == PING)
-                            {
-                                ReplyToPing(clientendpoint, data);
-                                UpdateClientPing(clientendpoint, null); // add the new client
-                                continue;
-                            }
-
-                            var receivedping = GetPingFromData(data);
-                            ping.Ping = receivedping; // update global ping average
-                            OnPingUpdate(ping.Ping);
-                            UpdateClientPing(clientendpoint, receivedping); // update per-client average
-
-                            if (command == START)
-                            {
-                                StartTimer((Program.StartAfterSeconds * 1000) - ((int)clients[clientendpoint].Ping / 2));
-                            }
-                        }
-                        else
-                            Log.LogMessage("got message of " + data.Length + " length");
+                        data = socket.Receive(ref clientendpoint);
                     }
                     catch
                     {
                         continue;
+                    }
+
+                    if (data.Length == 12)
+                    {
+                        int command = BitConverter.ToInt32(data, 0);
+                        if (command == PING)
+                        {
+                            ReplyToPing(clientendpoint, data);
+                            UpdateClientPing(clientendpoint, null); // add the new client
+                            continue;
+                        }
+
+                        var receivedping = GetPingFromData(data);
+                        ping.Ping = receivedping; // update global ping average
+                        OnPingUpdate(ping.Ping);
+                        UpdateClientPing(clientendpoint, receivedping); // update per-client average
+
+                        if (command == START)
+                        {
+                            StartTimer((Program.StartAfterSeconds * 1000) - ((int)clients[clientendpoint].Ping / 2));
+                        }
                     }
                 }
             }

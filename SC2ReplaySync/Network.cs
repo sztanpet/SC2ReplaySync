@@ -97,9 +97,7 @@ namespace SC2ReplaySync
             catch (ThreadAbortException)
             {
                 Stop();
-                
             }
-            Log.LogMessage("stop");
         }
 
         public bool ThreadIsAlive()
@@ -132,8 +130,6 @@ namespace SC2ReplaySync
                 Program.GUI.StartReplay -= new StartReplayEventHandler(SetupStartTimer);
                 pingtimercancelled = true;
                 pingtimer.Enabled = false;
-                stopwatch.Stop();
-                stopwatch = null;
                 pingtimer.Dispose();
                 socket.Close();
             }
@@ -200,6 +196,8 @@ namespace SC2ReplaySync
             timer.Interval = startafter;
             timer.Enabled = true;
             timer.AutoReset = false;
+
+            Log.LogMessage("Trying to start the replay in " + (startafter / 1000) + " seconds.");
         }
         
         protected virtual void OnStartTimerExpired(object source, ElapsedEventArgs e)

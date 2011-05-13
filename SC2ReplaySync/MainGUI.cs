@@ -130,7 +130,6 @@ namespace SC2ReplaySync
             if (StartReplay == null)
                 return;
 
-            Log.LogMessage("Trying to start the replay in " + Program.StartAfterSeconds + " seconds.");
             StartReplay(Program.StartAfterSeconds);
         }
 
@@ -197,13 +196,13 @@ namespace SC2ReplaySync
 
         private void PortTextBox_KeyPress(object sender, KeyPressEventArgs e)
         {
-            if (!PortCharSet.Contains(e.KeyChar.ToString()) || PortTextBox.Text.Length + 1 > 5)
+            if (!PortCharSet.Contains(e.KeyChar.ToString()) && (!char.IsControl(e.KeyChar) && e.KeyChar.ToString() != "v"))
                 e.Handled = true;
         }
 
         private void IPTextBox_KeyPress(object sender, KeyPressEventArgs e)
         {
-            if (!IpCharSet.Contains(e.KeyChar.ToString()) || IPTextBox.Text.Length + 1 > 15)
+            if (!IpCharSet.Contains(e.KeyChar.ToString()) && (!char.IsControl(e.KeyChar) && e.KeyChar.ToString() != "v"))
                 e.Handled = true;
         }
     }

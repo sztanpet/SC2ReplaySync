@@ -58,8 +58,8 @@ namespace SC2ReplaySync
 
                 while (true)
                 {
-                        
                     var data = new byte[0];
+
                     try
                     {
                         data = socket.Receive(ref endpoint);
@@ -87,9 +87,6 @@ namespace SC2ReplaySync
                             StartTimer((Program.StartAfterSeconds * 1000) - ((int)ping.Ping / 2));
                         }
                     }
-                    else
-                        Log.LogMessage("got message of " + data.Length + " length");
-                    
                 }
             }
 
