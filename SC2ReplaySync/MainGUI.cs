@@ -37,7 +37,7 @@ namespace SC2ReplaySync
             Log.LogboxUpdate += new LogboxUpdateEventHandler(Logbox_Update);
             Program.SCWindow = new WindowHandling();
             Program.SCWindow.StatusUpdate += new StatusUpdateEventHandler(StatusLabel_Update);
-
+            
             NetworkClient = new Network.Client();
             NetworkClient.PingUpdate += new PingUpdateEventHandler(Ping_Update);
             NetworkServer = new Network.Server();

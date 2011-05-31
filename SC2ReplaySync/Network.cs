@@ -197,7 +197,7 @@ namespace SC2ReplaySync
             timer.Enabled = true;
             timer.AutoReset = false;
 
-            Log.LogMessage("Trying to start the replay in " + (startafter / 1000) + " seconds.");
+            Log.LogMessage("Trying to start the replay in " + ((float)startafter / (float)1000) + " seconds.");
         }
         
         protected virtual void OnStartTimerExpired(object source, ElapsedEventArgs e)
